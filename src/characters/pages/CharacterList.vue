@@ -1,29 +1,48 @@
 <script setup lang="ts">
 import breakingBadApi from '@/api/breakingBadApi';
 import CardList from '@/characters/components/CardList.vue'
+import characterStore from '@/store/characters.store';
 import { useQuery } from '@tanstack/vue-query';
 import type { Character } from '../interfaces/character';
 
 const props = defineProps<{ title: string, visible: boolean }>();
 
-const getCharacters = async (): Promise<Character[]> => {
+const getCharactersCacheFirst = async (): Promise<Character[]> => {
+    if( characterStore.characters.count > 0 ){
+        return characterStore.characters.list;
+    }
+
     const { data } = await breakingBadApi.get<Character[]>('/characters');
-    return data.filter( character => ![14,17,39].includes( character.char_id ));
+    return data;
 }
 
-const { isLoading, isError, data: characters, error } = useQuery(
+const { isLoading, isError, data, error } = useQuery(
     ['characters'],
-    getCharacters
+    getCharactersCacheFirst,
+    {
+        onSuccess( data ){
+            characterStore.loadedCharacters(data);
+        },
+        // onError(error) {
+        //     // Aquí se manejaria cualquier error en la promesa
+        // }
+    }
 );
+
 
 </script>
 
 <template>
-    <h1 v-if="isLoading">Loading...</h1>
+    <h1 v-if="characterStore.characters.isLoading">Loading...</h1>
+
+    <div v-else-if="characterStore.characters.hasError">
+        <h1>Error al cargar</h1>
+        <p>{{ characterStore.characters.errorMessage }}</p>
+    </div>
 
     <template v-else>
         <h2>{{ props.title }}</h2>
-        <CardList :characters="characters!" />
+        <CardList :characters="characterStore.characters.list" />
     </template>
 
     
