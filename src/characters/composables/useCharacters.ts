@@ -1,45 +1,55 @@
-import { onMounted, ref } from "vue";
 import breakingBadApi from "@/api/breakingBadApi";
-import type { Character } from "@/characters/interfaces/character";
-import axios from "axios";
+import { useQuery } from "@tanstack/vue-query";
+import { computed, ref } from "vue";
+import type { Character } from "../interfaces/character";
 
 const characters = ref<Character[]>([]);
 const isLoading = ref<boolean>(false);
 const hasError = ref<boolean>(false);
-const errorMessage = ref<string>();
+const errorMessage = ref<string | null>(null);
 
-export const useCharacters = () => {
-
-    onMounted( async() => {
-        await loadCharacters();
-    });
-
-    const loadCharacters = async () => {
-
-        if(characters.value.length > 0) return;
-
-        isLoading.value = true;
-        try {
-            const { data } = await breakingBadApi.get<Character[]>('/characters');
-            characters.value = data;
-            isLoading.value = false;
-        } catch (error) {
-            hasError.value = true;
-            isLoading.value = false;
-
-            if( axios.isAxiosError(error) ){
-                return errorMessage.value = error.message;
-            }
-
-            errorMessage.value = JSON.stringify(error);
-        }
+const getCharacters = async (): Promise<Character[]> => {
+    if( characters.value.length > 0 ){
+        return characters.value;
     }
 
+    const { data } = await breakingBadApi.get<Character[]>('/characters');
+    return data;
+}
+
+const loadedCharacters = (data: Character[]) => {
+    hasError.value = false;
+    errorMessage.value = null;
+    characters.value = data.filter(character => ![14,17,39].includes(character.char_id));
+}
+
+const useCharacters = () => {
+
+    const { isLoading, } = useQuery(
+        ['characters'],
+        getCharacters,
+        {
+            onSuccess( data ){
+               loadedCharacters(data);
+            },
+            // onSuccess: loadedCharacters,
+            // onError(error) {
+            //     // Aquí se manejaria cualquier error en la promesa
+            // }
+        }
+    );
 
     return {
+        // Properties
         characters,
         isLoading,
         hasError,
-        errorMessage
+        errorMessage,
+        // Getters
+        count: computed( () => characters.value.length ),
+
+        // Methods
     }
 }
+
+export default useCharacters;
